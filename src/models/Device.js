@@ -42,7 +42,6 @@ const DeviceSchema = new mongoose.Schema(
 // Update lastUpdated whenever status changes
 DeviceSchema.pre('save', function (next) {
   if (this.isModified('status')) this.lastUpdated = Date.now();
-  next();
 });
 
 // Index for fast room-wise device queries
