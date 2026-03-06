@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 
 const authController = require('../controllers/authController');
-const { registerValidator, loginValidator, googleLoginValidator } = require('../validators/authValidator');
-const { validate } = require('../middlewares/validate');
+const { registerValidator, loginValidator, googleLoginValidator } = require('../middleware/authValidator');
+const { validate } = require('../middleware/validate');
 
 
 router.post('/register', registerValidator, validate, authController.register);

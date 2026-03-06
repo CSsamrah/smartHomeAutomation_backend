@@ -1,16 +1,11 @@
 const AppError = require('../utils/AppError');
 
-
 const handleCastError = (err) =>
   new AppError(`Invalid ${err.path}: ${err.value}.`, 400, 'INVALID_ID');
 
 const handleDuplicateKeyError = (err) => {
   const field = Object.keys(err.keyValue)[0];
-  return new AppError(
-    `An account with that ${field} already exists.`,
-    409,
-    'DUPLICATE_FIELD'
-  );
+  return new AppError(`An account with that ${field} already exists.`, 409, 'DUPLICATE_FIELD');
 };
 
 const handleValidationError = (err) => {
@@ -23,7 +18,6 @@ const handleJWTError = () =>
 
 const handleJWTExpiredError = () =>
   new AppError('Token expired. Please log in again.', 401, 'TOKEN_EXPIRED');
-
 
 const sendDevError = (err, res) => {
   res.status(err.statusCode).json({
@@ -43,6 +37,7 @@ const sendProdError = (err, res) => {
       ...(err.code && { code: err.code }),
     });
   } else {
+    console.error('ERROR 💥', err);
     res.status(500).json({
       status: 'error',
       message: 'Something went wrong. Please try again later.',
@@ -50,10 +45,11 @@ const sendProdError = (err, res) => {
   }
 };
 
-
 const globalErrorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
+
+  console.error(`[${new Date().toISOString()}] ${err.statusCode} - ${err.message}`);
 
   if (process.env.NODE_ENV === 'development') {
     return sendDevError(err, res);

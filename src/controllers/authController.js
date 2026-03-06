@@ -1,4 +1,6 @@
 const authService = require('../services/authService');
+const { verifyRefreshToken, generateAccessToken } = require('../services/tokenService');
+const User = require('../models/User');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 
 
@@ -65,9 +67,6 @@ const refreshToken = async (req, res, next) => {
       return sendError(res, 400, 'Refresh token is required.');
     }
 
-    const { verifyRefreshToken, generateAccessToken } = require('../services/tokenService');
-    const User = require('../models/User');
-
     const decoded = verifyRefreshToken(token);
     const user = await User.findById(decoded.sub);
 
@@ -82,7 +81,7 @@ const refreshToken = async (req, res, next) => {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     });
   } catch (err) {
-    next(err);
+    next(err);  // ✅ next is available because it's a parameter, not a nested require
   }
 };
 

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
-const{bycryptSaltRounds}=require('../config/auth');
+const{bcryptSaltRounds}=require('../config/auth');
 
 const UserSchema = new mongoose.Schema(
   {
@@ -55,10 +55,9 @@ const UserSchema = new mongoose.Schema(
 );
 
 //hook to hash password before saving
-UserSchema.pre('save',async function(next){
-  if (!this.isModified('password') || !this.password) return next();
-  this.password=await bcrypt.hash(this.password,bcryptSaltRounds);
-  next();
+UserSchema.pre('save', async function () {
+  if (!this.isModified('password') || !this.password) return;
+  this.password = await bcrypt.hash(this.password, bcryptSaltRounds);
 });
 
 //instance methods
@@ -79,6 +78,5 @@ UserSchema.methods.toPublicJson=function(){
   }
 }
 
-UserSchema.index({email:1});
 
 module.exports = mongoose.model('User', UserSchema);
