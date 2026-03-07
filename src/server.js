@@ -10,3 +10,5 @@ app.listen(PORT, () => {
     console.log("Connecting to:", process.env.MONGO_URI);
   console.log(`Server running on port ${PORT}`);
 });
+
+app.use('/api/rooms',     require('./routes/rooms'));
