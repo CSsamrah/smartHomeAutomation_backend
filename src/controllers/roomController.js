@@ -34,7 +34,7 @@ exports.createRoom = async (req, res) => {
  
     const room = await Room.create({
       name,
-      createdBy: req.user.id,  // set by auth middleware from Person 1
+      createdBy: req.user._id,  // set by auth middleware from Person 1
     });
  
     res.status(201).json({ id: room._id, name: room.name });

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
+const{bcryptSaltRounds}=require('../config/auth');
 
 const UserSchema = new mongoose.Schema(
   {
@@ -23,24 +24,59 @@ const UserSchema = new mongoose.Schema(
       minlength: [6, 'Password must be at least 6 characters'],
       select: false, // never returned in queries by default
     },
+    googleId:{
+      type:String,
+      select:false, //internal, not exposed
+    },
     role: {
       type: String,
       enum: ['ADMIN', 'RESIDENT'],
       default: 'RESIDENT',
     },
+    isActive:{
+      type:Boolean,
+      default:true,
+    },
+    lastLogin:{
+      type:Date,
+      default:null,
+    },
   },
-  { timestamps: true }
+  { timestamps: true,
+    toJSON: {
+      virtuals: true, // this includes virtual fields that you want to dynamically add in a response
+      transform(_, ret) {
+        delete ret.__v;  // deleting version ,googleId from the response
+        delete ret.googleId;
+        return ret;
+      },
+    },
+   }
 );
 
-// Hash password before saving
-UserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 12);
+//hook to hash password before saving
+UserSchema.pre('save', async function () {
+  if (!this.isModified('password') || !this.password) return;
+  this.password = await bcrypt.hash(this.password, bcryptSaltRounds);
 });
 
-// Instance method: compare password at login
-UserSchema.methods.comparePassword = async function (candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
+//instance methods
+UserSchema.methods.comparePassword=async function(candidatePassword){
+  return bcrypt.compare(candidatePassword,this.password);
 };
+
+UserSchema.methods.toPublicJson=function(){
+  return{
+    id: this._id,
+    name: this.name,
+    email: this.email,
+    role: this.role,
+    isActive: this.isActive,
+    lastLogin: this.lastLogin,
+    createdAt: this.createdAt,
+    updatedAt: this.updatedAt,
+  }
+}
+
 
 module.exports = mongoose.model('User', UserSchema);
