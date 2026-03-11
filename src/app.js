@@ -9,7 +9,12 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const roomRoutes = require('./routes/rooms')
+const roomRoutes = require('./routes/rooms');
+const dashboardRoutes = require('./routes/dashboard');
+const eventRoutes = require('./routes/events');
+const alertRoutes = require('./routes/alerts');
+const energyRoutes = require('./routes/energy');
+const modelRoutes = require('./routes/model');
 const globalErrorHandler = require('./middleware/errorHandler');
 const AppError = require('./utils/AppError');
 
@@ -33,7 +38,12 @@ app.get('/health', (req, res) =>
 
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
-app.use('/api/rooms', roomRoutes);
+app.use('/rooms', roomRoutes);
+app.use('/dashboard', dashboardRoutes);
+app.use('/events', eventRoutes);
+app.use('/alerts', alertRoutes);
+app.use('/energy', energyRoutes);
+app.use('/model', modelRoutes);
 
 app.use((req, res, next) => {
   next(new AppError(`Route ${req.originalUrl} not found.`, 404, 'ROUTE_NOT_FOUND'));
