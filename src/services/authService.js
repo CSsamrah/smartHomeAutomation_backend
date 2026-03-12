@@ -52,7 +52,7 @@ const login = async ({ email, password }) => {
 
 const googleLogin = async (idToken) => {
   const googleProfile = await verifyGoogleToken(idToken);
-  const { googleId, email, name, avatar } = googleProfile;
+  const { googleId, email, name } = googleProfile;
 
   let isNewUser = false;
   let user = await User.findOne({ email });
@@ -65,7 +65,7 @@ const googleLogin = async (idToken) => {
       throw new AppError('Your account has been deactivated. Contact support.', 403, 'ACCOUNT_INACTIVE');
     }
   } else {
-    user = await User.create({ name, email, googleId, avatar, role: 'RESIDENT' });
+    user = await User.create({ name, email, googleId, role: 'RESIDENT' });
     isNewUser = true;
     console.log(`New Google OAuth user: ${email}`);
   }

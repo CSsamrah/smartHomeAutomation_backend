@@ -8,7 +8,7 @@ const verifyGoogleToken=async(idToken)=>{
     try{
         const ticket= await client.verifyIdToken({idToken,audience:googleClientId,})
 
-        const payload=ticket.getPayLoad();
+        const payload=ticket.getPayload();
         if(!payload){
             throw new AppError('Google token payload is empty.', 401, 'GOOGLE_TOKEN_EMPTY');
         }
@@ -26,6 +26,6 @@ const verifyGoogleToken=async(idToken)=>{
   }
 };
 
-module.eports={
+module.exports={
     verifyGoogleToken,
 };
