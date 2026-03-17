@@ -195,6 +195,8 @@ const validateUpdateRoom = [
 ];
 
 module.exports = {
+  validate,
+  handleValidation,
   validateRegister,
   validateLogin,
   validateGoogleLogin,
