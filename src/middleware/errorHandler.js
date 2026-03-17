@@ -1,69 +1,87 @@
-const AppError = require('../utils/AppError');
+/**
+ * ErrorHandler
+ *
+ * Design Pattern: CHAIN OF RESPONSIBILITY (terminal link)
+ *
+ * This is the last middleware in the Express chain. It receives any error
+ * forwarded via next(err) and maps it to a clean JSON response.
+ *
+ * The mapping table follows the OPEN/CLOSED PRINCIPLE: adding support for
+ * a new error type means adding a new _handle* method and registering it
+ * in the handlers array — the dispatch loop never changes.
+ */
 
-const handleCastError = (err) =>
-  new AppError(`Invalid ${err.path}: ${err.value}.`, 400, 'INVALID_ID');
+const ApiResponse = require('../utils/ApiResponse');
+const { AppError } = require('../utils/AppError');
 
-const handleDuplicateKeyError = (err) => {
-  const field = Object.keys(err.keyValue)[0];
-  return new AppError(`An account with that ${field} already exists.`, 409, 'DUPLICATE_FIELD');
-};
-
-const handleValidationError = (err) => {
-  const messages = Object.values(err.errors).map((e) => e.message);
-  return new AppError(messages.join(' | '), 400, 'VALIDATION_ERROR');
-};
-
-const handleJWTError = () =>
-  new AppError('Invalid token. Please log in again.', 401, 'TOKEN_INVALID');
-
-const handleJWTExpiredError = () =>
-  new AppError('Token expired. Please log in again.', 401, 'TOKEN_EXPIRED');
-
-const sendDevError = (err, res) => {
-  res.status(err.statusCode).json({
-    status: err.status,
-    message: err.message,
-    code: err.code,
-    stack: err.stack,
-    error: err,
-  });
-};
-
-const sendProdError = (err, res) => {
-  if (err.isOperational) {
-    res.status(err.statusCode).json({
-      status: err.status,
-      message: err.message,
-      ...(err.code && { code: err.code }),
-    });
-  } else {
-    console.error('ERROR 💥', err);
-    res.status(500).json({
-      status: 'error',
-      message: 'Something went wrong. Please try again later.',
-    });
-  }
-};
-
-const globalErrorHandler = (err, req, res, next) => {
-  err.statusCode = err.statusCode || 500;
-  err.status = err.status || 'error';
-
-  console.error(`[${new Date().toISOString()}] ${err.statusCode} - ${err.message}`);
-
-  if (process.env.NODE_ENV === 'development') {
-    return sendDevError(err, res);
+class ErrorHandler {
+  constructor() {
+    /**
+     * Ordered list of handler methods.
+     * Each returns an ApiResponse + statusCode pair, or null to pass to the next.
+     */
+    this._handlers = [
+      this._handleMongooseCast,
+      this._handleMongoDuplicateKey,
+      this._handleMongooseValidation,
+      this._handleJwtError,
+      this._handleOperational,
+    ];
   }
 
-  let error = Object.assign(Object.create(Object.getPrototypeOf(err)), err);
+  /**
+   * Returns an Express error-handling middleware (4-argument signature).
+   */
+  get middleware() {
+    return (err, req, res, next) => { // eslint-disable-line no-unused-vars
+      for (const handler of this._handlers) {
+        const result = handler(err);
+        if (result) {
+          return ApiResponse.error(result.message, result.code).send(res, result.status);
+        }
+      }
+      // Fallthrough: unknown / programming error
+      console.error('[ErrorHandler] Unhandled error:', err);
+      const message = process.env.NODE_ENV === 'production'
+        ? 'Something went wrong. Please try again later.'
+        : err.message;
+      return ApiResponse.error(message, 'INTERNAL_ERROR').send(res, 500);
+    };
+  }
 
-  if (err.name === 'CastError') error = handleCastError(error);
-  if (err.code === 11000) error = handleDuplicateKeyError(error);
-  if (err.name === 'ValidationError') error = handleValidationError(error);
-  if (err.name === 'JsonWebTokenError') error = handleJWTError();
-  if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
-  sendProdError(error, res);
-};
+  _handleMongooseCast(err) {
+    if (err.name !== 'CastError') return null;
+    return { status: 400, message: `Invalid ${err.path}: ${err.value}.`, code: 'INVALID_ID' };
+  }
 
-module.exports = globalErrorHandler;
+  _handleMongoDuplicateKey(err) {
+    if (err.code !== 11000) return null;
+    const field = Object.keys(err.keyValue || {})[0] || 'field';
+    return { status: 409, message: `${field} is already in use.`, code: 'DUPLICATE_KEY' };
+  }
+
+  _handleMongooseValidation(err) {
+    if (err.name !== 'ValidationError') return null;
+    const message = Object.values(err.errors).map((e) => e.message)[0];
+    return { status: 422, message, code: 'VALIDATION_ERROR' };
+  }
+
+  _handleJwtError(err) {
+    if (err.name === 'JsonWebTokenError') {
+      return { status: 401, message: 'Invalid token.', code: 'TOKEN_INVALID' };
+    }
+    if (err.name === 'TokenExpiredError') {
+      return { status: 401, message: 'Token has expired.', code: 'TOKEN_EXPIRED' };
+    }
+    return null;
+  }
+
+  _handleOperational(err) {
+    if (!err.isOperational) return null;
+    return { status: err.statusCode, message: err.message, code: err.code };
+  }
+}
+
+module.exports = new ErrorHandler();
