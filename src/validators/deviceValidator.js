@@ -46,6 +46,9 @@ const iotFeedbackRules = [
   body('power')
     .optional()
     .isNumeric().withMessage('power must be a number'),
+  body('energy_kwh')
+  .optional()
+  .isNumeric().withMessage('energy_kwh must be a number'),
 ];
 
 module.exports = {
