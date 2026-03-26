@@ -25,6 +25,7 @@ const authRoutes   = require('./routes/authRoutes');
 const userRoutes   = require('./routes/userRoutes');
 const homeRoutes   = require('./routes/homeRoutes');
 const roomRoutes   = require('./routes/roomRoutes');
+const simulationRoutes = require('./routes/simulationRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 // ── Express Setup ──────────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ app.use('/auth',  authRoutes);
 app.use('/users', userRoutes);
 app.use('/homes', homeRoutes);
 app.use('/rooms', roomRoutes);
+app.use('/api/simulation', simulationRoutes);
 
 
 
