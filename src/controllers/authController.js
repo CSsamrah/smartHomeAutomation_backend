@@ -1,88 +1,99 @@
-const authService = require('../services/authService');
-const { verifyRefreshToken, generateAccessToken } = require('../services/tokenService');
-const User = require('../models/User');
-const { sendSuccess, sendError } = require('../utils/responseHelper');
+/**
+ * AuthController
+ *
+ * Design Patterns:
+ *  • TEMPLATE METHOD (via BaseController) — this.handle() wraps every method
+ *    in the invariant try/catch → next(err) skeleton.
+ *  • MVC CONTROLLER  — thin HTTP adapter: extract input → call AuthService
+ *                      → send response. Zero business logic here.
+ */
 
+const BaseController = require('./baseController');
+const authService    = require('../services/auth/authService');
 
-const register = async (req, res, next) => {
-  try {
+class AuthController extends BaseController {
+
+  // ── POST /auth/register ──────────────────────────────────────────────────
+  async register(req, res) {
     const { name, email, password, role } = req.body;
     const result = await authService.register({ name, email, password, role });
 
-    return sendSuccess(res, 201, 'Account created successfully.', {
-      user: result.user,
+    return this.created(res, 'Account created successfully.', {
+      user:   result.user,
       tokens: result.tokens,
     });
-  } catch (err) {
-    next(err);
   }
-};
 
-
-const login = async (req, res, next) => {
-  try {
+  // ── POST /auth/login ─────────────────────────────────────────────────────
+  async login(req, res) {
     const { email, password } = req.body;
     const result = await authService.login({ email, password });
 
-    // Forward role header (also set in protect middleware for authenticated routes)
     res.setHeader('X-User-Role', result.user.role);
 
-    return sendSuccess(res, 200, 'Login successful.', {
-      user: result.user,
+    return this.ok(res, 'Login successful.', {
+      user:   result.user,
       tokens: result.tokens,
     });
-  } catch (err) {
-    next(err);
   }
-};
 
-
-const googleLogin = async (req, res, next) => {
-  try {
-    const { idToken } = req.body;
-    const result = await authService.googleLogin(idToken);
+  // ── POST /auth/google ────────────────────────────────────────────────────
+  async googleLogin(req, res) {
+    const { idToken,role } = req.body;
+    const result = await authService.googleLogin({ idToken, role });
 
     res.setHeader('X-User-Role', result.user.role);
 
-    return sendSuccess(
+    const statusCode = result.isNewUser ? 201 : 200;
+    const message    = result.isNewUser
+      ? 'Account created via Google.'
+      : 'Google login successful.';
+
+    return ApiResponse.success(message, {
+      user:      result.user,
+      tokens:    result.tokens,
+      isNewUser: result.isNewUser,
+    }).send(res, statusCode);
+  }
+
+  // ── POST /auth/refresh-token ─────────────────────────────────────────────
+  async refreshToken(req, res) {
+    const { refreshToken } = req.body;
+    const result = await authService.refreshToken(refreshToken);
+
+    return this.ok(res, 'Token refreshed.', result);
+  }
+
+  // ── POST /auth/forgot-password ───────────────────────────────────────────
+  async forgotPassword(req, res) {
+    await authService.forgotPassword(req.body.email);
+    // Always 200 regardless of whether the email exists — prevents enumeration
+    return this.ok(
       res,
-      result.isNewUser ? 201 : 200,
-      result.isNewUser ? 'Account created via Google.' : 'Google login successful.',
-      {
-        user: result.user,
-        tokens: result.tokens,
-        isNewUser: result.isNewUser,
-      }
+      'an account with that email exists, a reset code has been sent.'
     );
-  } catch (err) {
-    next(err);
   }
-};
 
+  // ── POST /auth/verify-reset-code ─────────────────────────────────────────
+  async verifyResetCode(req, res) {
+    const { email, code } = req.body;
+    await authService.verifyResetCode(email, code);
+    return this.ok(res, 'Code verified. You may now reset your password.');
+  }
 
-const refreshToken = async (req, res, next) => {
-  try {
-    const { refreshToken: token } = req.body;
-    if (!token) {
-      return sendError(res, 400, 'Refresh token is required.');
-    }
+  // ── POST /auth/reset-password ────────────────────────────────────────────
+  async resetPassword(req, res) {
+    const { email, newPassword } = req.body;
+    const result = await authService.resetPassword(email, newPassword);
 
-    const decoded = verifyRefreshToken(token);
-    const user = await User.findById(decoded.sub);
-
-    if (!user || !user.isActive) {
-      return sendError(res, 401, 'Invalid refresh token.');
-    }
-
-    const accessToken = generateAccessToken({ id: user._id, role: user.role });
-
-    return sendSuccess(res, 200, 'Token refreshed.', {
-      accessToken,
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    return this.ok(res, 'Password reset successfully.', {
+      user:   result.user,
+      tokens: result.tokens,
     });
-  } catch (err) {
-    next(err);  // ✅ next is available because it's a parameter, not a nested require
   }
-};
+}
 
-module.exports = { register, login, googleLogin, refreshToken };
+// Export a single instance so routes can call controller.handle(controller.method)
+const ApiResponse = require('../utils/ApiResponse');
+const controller  = new AuthController();
+module.exports    = controller;

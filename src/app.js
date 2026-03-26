@@ -1,69 +1,127 @@
+/**
+ * app.js — Application Entry Point
+ *
+ * Design Pattern: FACADE
+ * Single file that configures Express, connects to MongoDB, and boots the
+ * HTTP server. All wiring is encapsulated here — nothing else needs to know
+ * how the app starts.
+ *
+ * Boot sequence:
+ *  1. Load env variables
+ *  2. Connect to MongoDB
+ *  3. Configure Express (middleware → routes → error handler)
+ *  4. Start HTTP server
+ *  5. Register graceful shutdown + unhandled error hooks
+ */
 const dns=require('dns');
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 require('dotenv').config();
 
-const express = require('express');
+const express    = require('express');
+const cors       = require('cors');
+const mongoose   = require('mongoose');
 const helmet = require('helmet');
-const cors = require('cors');
+require('./events/eventLogListener');
 
-const connectDB = require('./config/db');
-const authRoutes = require('./routes/authRoutes');
-const userRoutes = require('./routes/userRoutes');
-const roomRoutes = require('./routes/rooms');
-const dashboardRoutes = require('./routes/dashboard');
-const eventRoutes = require('./routes/events');
-const alertRoutes = require('./routes/alerts');
-const energyRoutes = require('./routes/energy');
-const modelRoutes = require('./routes/model');
+
+const authRoutes   = require('./routes/authRoutes');
+const userRoutes   = require('./routes/userRoutes');
+const homeRoutes   = require('./routes/homeRoutes');
+const roomRoutes   = require('./routes/roomRoutes');
+const errorHandler = require('./middleware/errorHandler');
+const deviceRoutes     = require('./routes/deviceRoutes');
+const automationRoutes = require('./routes/automationRoutes');
+const iotRoutes        = require('./routes/iotRoutes');
+const AutomationService = require('./services/automationService');
+const eventRoutes      = require('./routes/eventRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const energyRoutes    = require('./routes/energyRoutes');
+const modelRoutes = require('./routes/modelRoutes');
+const highEnergyMonitor = require('./services/highEnergyMonitoringService');
+const alertRoutes = require('./routes/alertRoutes');
+
 const globalErrorHandler = require('./middleware/errorHandler');
 const AppError = require('./utils/AppError');
 
 const app = express();
 
-connectDB();
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-app.use(helmet());
-app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['X-User-Role', 'X-User-Id'],
-}));
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-
-app.get('/health', (req, res) =>
-  res.status(200).json({ status: 'ok', uptime: process.uptime() })
-);
-
-app.use('/auth', authRoutes);
+// ── Routes ─────────────────────────────────────────────────────────────────────
+console.log('[Server time]', new Date().toLocaleTimeString());
+app.use('/auth',  authRoutes);
 app.use('/users', userRoutes);
+app.use('/homes', homeRoutes);
 app.use('/rooms', roomRoutes);
+app.use('/devices',deviceRoutes);
+app.use('/automations',automationRoutes);
+app.use('/iot',iotRoutes);
+app.use('/events',eventRoutes);
 app.use('/dashboard', dashboardRoutes);
-app.use('/events', eventRoutes);
-app.use('/alerts', alertRoutes);
 app.use('/energy', energyRoutes);
 app.use('/model', modelRoutes);
+app.use('/alerts', alertRoutes);
 
-app.use((req, res, next) => {
-  next(new AppError(`Route ${req.originalUrl} not found.`, 404, 'ROUTE_NOT_FOUND'));
+
+
+// ── 404 ────────────────────────────────────────────────────────────────────────
+
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: 'Route not found.' });
 });
 
-app.use(globalErrorHandler);
+// ── Global Error Handler (Chain of Responsibility — terminal link) ─────────────
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-});
+app.use(errorHandler.middleware);
 
-process.on('unhandledRejection', (err) => {
-  console.error('UNHANDLED REJECTION:', err);
-  process.exit(1);
-});
+// ── MongoDB Connection ─────────────────────────────────────────────────────────
 
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION:', err);
-  process.exit(1);
-});
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI);
+    console.log(`[DB] MongoDB connected: ${conn.connection.host}`);
+    await AutomationService.scheduleAllActiveRules();
+    highEnergyMonitor.start();
+  } catch (err) {
+    console.error('[DB] Connection failed:', err.message);
+    process.exit(1);
+  }
+};
 
-module.exports = app;
+// ── Graceful Shutdown ──────────────────────────────────────────────────────────
+
+const shutdown = (server, signal) => async () => {
+  console.log(`\n[Server] ${signal} received — shutting down gracefully...`);
+  server.close(async () => {
+    await mongoose.connection.close();
+    console.log('[DB] MongoDB connection closed.');
+    console.log('[Server] Process terminated.');
+    process.exit(0);
+  });
+};
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
+
+const start = async () => {
+  await connectDB();
+
+  const PORT   = process.env.PORT || 5000;
+  const server = app.listen(PORT, () => {
+    console.log(`[Server] Running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  });
+
+  process.on('SIGTERM',            shutdown(server, 'SIGTERM'));
+  process.on('SIGINT',             shutdown(server, 'SIGINT'));
+  process.on('unhandledRejection', (err) => {
+    console.error('[Server] Unhandled Rejection:', err.message);
+    shutdown(server, 'unhandledRejection')();
+  });
+  process.on('uncaughtException',  (err) => {
+    console.error('[Server] Uncaught Exception:', err.message);
+    shutdown(server, 'uncaughtException')();
+  });
+};
+
+start();

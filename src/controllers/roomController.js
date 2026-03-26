@@ -1,71 +1,68 @@
-// controllers/roomController.js
-const Room   = require('../models/Room');
-const Device = require('../models/Device');
- 
-// GET /api/rooms
-exports.getAllRooms = async (req, res) => {
-  try {
-    const rooms = await Room.find().sort({ createdAt: 1 });
- 
-    const result = await Promise.all(
-      rooms.map(async (room) => {
-        const device_count = await Device.countDocuments({
-          room: room._id,
-          isActive: true
-        });
-        return { id: room._id, name: room.name, device_count };
-      })
+/**
+ * RoomController
+ *
+ * Design Patterns:
+ *  • TEMPLATE METHOD (via BaseController) — this.handle() wraps every method
+ *  • MVC CONTROLLER  — thin HTTP adapter only
+ */
+
+const BaseController = require('./baseController');
+const roomService    = require('../services/roomService');
+
+class RoomController extends BaseController {
+
+  // ── POST /homes/:homeId/rooms ─────────────────────────────────────────────
+  async createRoom(req, res) {
+    const { name, description } = req.body;
+    const room = await roomService.createRoom(
+      req.params.homeId,
+      req.user._id,
+      { name, description }
     );
- 
-    res.status(200).json(result);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    return this.created(res, 'Room created successfully.', { room });
   }
-};
 
-// POST /api/rooms
-exports.createRoom = async (req, res) => {
-  try {
-    const { name } = req.body;
- 
-    if (!name) {
-      return res.status(400).json({ message: 'Room name is required' });
-    }
- 
-    const room = await Room.create({
-      name,
-      createdBy: req.user._id,  // set by auth middleware from Person 1
-    });
- 
-    res.status(201).json({ id: room._id, name: room.name });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  // ── GET /homes/:homeId/rooms ──────────────────────────────────────────────
+  async listRooms(req, res) {
+    const rooms = await roomService.listRooms(
+      req.params.homeId,
+      req.user._id
+    );
+    return this.ok(res, 'Rooms retrieved.', { rooms });
   }
-};
 
-// GET /api/rooms/:room_id
-exports.getRoomById = async (req, res) => {
-  try {
-    const room = await Room.findById(req.params.room_id);
-    if (!room) return res.status(404).json({ message: 'Room not found' });
- 
-    const devices = await Device.find({
-      room: room._id,
-      isActive: true
-    }).select('name type status powerRatingWatt lastUpdated');
- 
-    res.status(200).json({
-      id: room._id,
-      name: room.name,
-      devices: devices.map(d => ({
-        id: d._id,
-        name: d.name,
-        type: d.type,
-        status: d.status,
-        current_state: d.status,
-      }))
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  // ── GET /homes/:homeId/rooms/:roomId ──────────────────────────────────────
+  async getRoomById(req, res) {
+    const room = await roomService.getRoomById(
+      req.params.homeId,
+      req.params.roomId,
+      req.user._id
+    );
+    return this.ok(res, 'Room retrieved.', { room });
   }
-};
+
+  // ── PATCH /homes/:homeId/rooms/:roomId ────────────────────────────────────
+  async updateRoom(req, res) {
+    const { name, description } = req.body;
+    const room = await roomService.updateRoom(
+      req.params.homeId,
+      req.params.roomId,
+      req.user._id,
+      { name, description }
+    );
+    return this.ok(res, 'Room updated.', { room });
+  }
+
+  // ── DELETE /homes/:homeId/rooms/:roomId ───────────────────────────────────
+  async deleteRoom(req, res) {
+    await roomService.deleteRoom(
+      req.params.homeId,
+      req.params.roomId,
+      req.user._id
+    );
+    return this.ok(res, 'Room deleted.');
+  }
+}
+
+const controller = new RoomController();
+module.exports   = controller;

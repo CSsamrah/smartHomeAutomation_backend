@@ -1,100 +1,87 @@
-const User = require('../models/User');
-const AppError = require('../utils/AppError');
-const { sendSuccess, sendError } = require('../utils/responseHelper');
+/**
+ * UserController
+ *
+ * Design Patterns:
+ *  • TEMPLATE METHOD (via BaseController) — this.handle() eliminates
+ *    try/catch boilerplate from every method.
+ *  • MVC CONTROLLER — thin adapter: extract → service → respond.
+ */
 
-const formatUser = (user) => ({
-  id: user._id,
-  name: user.name,
-  email: user.email,
-  role: user.role,
-  avatar: user.avatar,
-  isActive: user.isActive,
-  lastLogin: user.lastLogin,
-  createdAt: user.createdAt,
-  updatedAt: user.updatedAt,
-});
+const BaseController = require('./baseController');
+const userService    = require('../services/userService');
 
-const buildDashboard = (user) => {
-  const base = {
-    role: user.role,
-    lastLogin: user.lastLogin,
-    memberSince: user.createdAt,
-  };
+class UserController extends BaseController {
 
-  if (user.role === 'ADMIN') {
-    return {
-      ...base,
-      permissions: [
-        'manage_users',
-        'view_all_residents',
-        'manage_announcements',
-        'view_reports',
-      ],
-      quickLinks: ['/admin/users', '/admin/reports', '/admin/announcements'],
-    };
+  // ── Own-profile ───────────────────────────────────────────────────────────
+
+  async getMyProfile(req, res) {
+    const user = await userService.getMyProfile(req.user._id);
+    return this.ok(res, 'Profile retrieved.', { user });
   }
 
-  return {
-    ...base,
-    permissions: ['view_own_profile', 'submit_requests', 'view_announcements'],
-    quickLinks: ['/resident/requests', '/resident/announcements'],
-  };
-};
+  async updateMyProfile(req, res) {
+    const { name, avatar } = req.body;
+    const user = await userService.updateMyProfile(req.user._id, { name, avatar });
+    return this.ok(res, 'Profile updated.', { user });
+  }
 
-const getMyProfile = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user._id);
+  async changeMyPassword(req, res) {
+    const { currentPassword, newPassword } = req.body;
+    await userService.changeMyPassword(req.user._id, { currentPassword, newPassword });
+    return this.ok(res, 'Password changed successfully.');
+  }
 
-    if (!user) {
-      return next(new AppError('User not found.', 404, 'USER_NOT_FOUND'));
-    }
+  // ── Admin ─────────────────────────────────────────────────────────────────
 
-    return sendSuccess(res, 200, 'User profile fetched successfully.', {
-      profile: formatUser(user),
-      dashboard: buildDashboard(user),
+  async listUsers(req, res) {
+    const { role, isActive, page, limit, search } = req.query;
+
+    const result = await userService.listUsers({
+      role,
+      isActive: isActive !== undefined ? isActive === 'true' : undefined,
+      page:     page  ? Number(page)  : 1,
+      limit:    limit ? Number(limit) : 20,
+      search,
     });
-  } catch (err) {
-    next(err);
+
+    return this.ok(res, 'Users retrieved.', result);
   }
-};
 
-const getUserById = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.params.id);
-
-    if (!user) {
-      return next(new AppError('No user found with that ID.', 404, 'USER_NOT_FOUND'));
-    }
-
-    return sendSuccess(res, 200, 'User fetched successfully.', {
-      profile: formatUser(user),
-    });
-  } catch (err) {
-    next(err);
+  async addResident(req, res) {
+    const { name, email, password } = req.body;
+    const user = await userService.addResident({ name, email, password }, req.user);
+    return this.created(res, 'Resident added successfully.', { user });
   }
-};
 
-const getAllUsers = async (req, res, next) => {
-  try {
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
-    const skip = (page - 1) * limit;
+  async getUserById(req, res) {
+    const user = await userService.getUserById(req.params.userId);
+    return this.ok(res, 'User retrieved.', { user });
+  }
 
-    const [users, total] = await Promise.all([
-      User.find().skip(skip).limit(limit).sort('-createdAt'),
-      User.countDocuments(),
-    ]);
-
-    return sendSuccess(
-      res,
-      200,
-      'Users fetched successfully.',
-      { users: users.map(formatUser) },
-      { page, limit, total, pages: Math.ceil(total / limit) }
+  async adminUpdateUser(req, res) {
+    const user = await userService.adminUpdateUser(
+      req.params.userId,
+      req.body,
+      req.user
     );
-  } catch (err) {
-    next(err);
+    return this.ok(res, 'User updated.', { user });
   }
-};
 
-module.exports = { getMyProfile, getUserById, getAllUsers };
+  async deactivateUser(req, res) {
+    const user = await userService.deactivateUser(req.params.userId, req.user);
+    return this.ok(res, 'User deactivated.', { user });
+  }
+
+  async reactivateUser(req, res) {
+    const user = await userService.reactivateUser(req.params.userId, req.user);
+    return this.ok(res, 'User reactivated.', { user });
+  }
+
+  async deleteUser(req, res) {
+    await userService.deleteUser(req.params.userId, req.user);
+    return this.ok(res, 'User permanently deleted.');
+  }
+}
+
+const controller = new UserController();
+module.exports   = controller;
