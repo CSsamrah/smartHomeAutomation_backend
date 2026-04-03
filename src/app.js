@@ -27,6 +27,7 @@ const authRoutes   = require('./routes/authRoutes');
 const userRoutes   = require('./routes/userRoutes');
 const homeRoutes   = require('./routes/homeRoutes');
 const roomRoutes   = require('./routes/roomRoutes');
+const simulationRoutes = require('./routes/simulationRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const deviceRoutes     = require('./routes/deviceRoutes');
 const automationRoutes = require('./routes/automationRoutes');
@@ -54,7 +55,7 @@ app.use('/devices',deviceRoutes);
 app.use('/automations',automationRoutes);
 app.use('/iot',iotRoutes);
 app.use('/events',eventRoutes);
-
+app.use('/simulation', simulationRoutes);
 
 
 
