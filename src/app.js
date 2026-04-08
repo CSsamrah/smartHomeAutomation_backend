@@ -28,6 +28,7 @@ const authRoutes   = require('./routes/authRoutes');
 const userRoutes   = require('./routes/userRoutes');
 const homeRoutes   = require('./routes/homeRoutes');
 const roomRoutes   = require('./routes/roomRoutes');
+const simulationRoutes = require('./routes/simulationRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const deviceRoutes     = require('./routes/deviceRoutes');
 const automationRoutes = require('./routes/automationRoutes');
@@ -63,6 +64,8 @@ app.use('/dashboard', dashboardRoutes);
 app.use('/energy', energyRoutes);
 app.use('/model', modelRoutes);
 app.use('/alerts', alertRoutes);
+app.use('/simulation', simulationRoutes);
+
 
 
 
