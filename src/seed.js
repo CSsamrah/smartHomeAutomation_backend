@@ -1,3 +1,5 @@
+const dns=require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 require('dotenv').config();
 const mongoose  = require('mongoose');
 const connectDB = require('./config/db');
@@ -261,6 +263,95 @@ const seedDatabase = async () => {
       expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 24 hrs in the past
     },
   ]);
+  // ── 🔥 ADDITIONAL DATA (WITHOUT DELETING EXISTING) ─────────────
+console.log('Adding extra user + home + devices...');
+
+// Create new user
+const newUser = await User.create({
+  name:     'Zain Resident',
+  email:    'zain@smarthome.com',
+  password: 'password123',
+  role:     'RESIDENT',
+});
+
+// Create another home
+const newHome = await Home.create({
+  name:      'Smart Apartment',
+  address:   '45 Future Road, Karachi',
+  admin:     admin._id, // reuse existing admin
+  residents: [newUser._id],
+  isActive:  true,
+});
+
+// Create rooms
+const livingRoom = await Room.create({
+  name: 'Living Room',
+  home: newHome._id,
+  createdBy: admin._id,
+});
+
+const studyRoom = await Room.create({
+  name: 'Study Room',
+  home: newHome._id,
+  createdBy: admin._id,
+});
+
+// Create devices
+const tv = await Device.create({
+  name: 'Smart light',
+  type: 'LIGHT',
+  room: livingRoom._id,
+  powerRatingWatt: 70,
+  status: 'ON',
+});
+
+const heater = await Device.create({
+  name: 'Room fan',
+  type: 'FAN',
+  room: studyRoom._id,
+  powerRatingWatt: 120,
+  status: 'OFF',
+});
+
+const lamp = await Device.create({
+  name: 'Study Lamp',
+  type: 'LIGHT',
+  room: studyRoom._id,
+  powerRatingWatt: 25,
+  status: 'ON',
+});
+
+// Create events
+await Event.create([
+  {
+    device: tv._id,
+    deviceName: 'Smart light',
+    action: 'ON',
+    triggeredBy: 'USER',
+    user: newUser._id,
+  },
+  {
+    device: heater._id,
+    deviceName: 'Room fan',
+    action: 'OFF',
+    triggeredBy: 'USER',
+    user: newUser._id,
+  },
+  {
+    device: lamp._id,
+    deviceName: 'Study Lamp',
+    action: 'ON',
+    triggeredBy: 'AUTOMATION',
+  },
+  {
+    device: tv._id,
+    deviceName: 'Smart TV',
+    action: 'IDLE',
+    triggeredBy: 'IOT_FEEDBACK',
+  },
+]);
+
+console.log('data added successfully!');
 
   // ── Summary ───────────────────────────────────────────────────────────────
   console.log('\n✓  Database seeded successfully!');

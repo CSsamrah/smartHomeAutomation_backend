@@ -42,24 +42,13 @@ class EventService {
     if (!device) throw new AppError('Device not found', 404);
 
     const since      = new Date(Date.now() - windowHours * 60 * 60 * 1000);
-    const [earliest, latest, eventCount] = await Promise.all([
-      Event.findOne({ device: oid(deviceId), timestamp: { $gte: since } })
-        .sort({ timestamp: 1 }).select('timestamp').lean(),
-      Event.findOne({ device: oid(deviceId), timestamp: { $gte: since } })
-        .sort({ timestamp: -1 }).select('timestamp').lean(),
-      Event.countDocuments({ device: oid(deviceId), timestamp: { $gte: since } }),
-    ]);
+    const eventCount = await Event.countDocuments({
+    device: oid(deviceId),
+    timestamp: { $gte: since },
+  });
 
-    if (eventCount === 0) {
-      return { deviceId, deviceName: device.name, windowHours,
-        eventCount: 0, lambdaPerHour: 0,
-        interpretation: this._interpretLambda(0) };
-    }
-
-  // T = actual span between first and last event, min 1 h (report spec)
-    const spanMs = latest.timestamp - earliest.timestamp;
-    const spanHours = Math.max(spanMs / (1000 * 60 * 60), 1);
-    const lambda = eventCount / spanHours;
+  // T = the observation window you defined, not the span between events
+  const lambda = eventCount / windowHours;
     return {
       deviceId,
       deviceName:   device.name,
