@@ -38,7 +38,8 @@ class SimulationService {
     totalEnergyKwh *= multiplier;
 
     const totalDevices = await Device.countDocuments({ isActive: true });
-    const utilization = totalDevices > 0 ? (activeDevices.length / totalDevices) * 100 : 0;
+    const rawUtilization = totalDevices > 0 ? (activeDevices.length / totalDevices) * 100 : 0;
+    const utilization = Math.min(100, rawUtilization * multiplier); // cap at 100%
     const avgResponseTimeMs = Math.random() * 100 + 50;
 
     const result = {

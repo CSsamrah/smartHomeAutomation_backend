@@ -12,6 +12,7 @@ const AppError          = require('../utils/AppError');
 const DomainEvents      = require('../events/domainEvents');
 const MqttPublisher     = require('./mqttPublisher');
 const AutomationService = require('./automationService');
+const SerialController = require('../controllers/serialController');
 
 class DeviceService {
 
@@ -81,7 +82,16 @@ class DeviceService {
     device.status = action;
     await device.save();
 
-    MqttPublisher.publishCommand(deviceId, action);
+    // Map your MongoDB device IDs to LED numbers 1/2/3
+    const LED_MAP = {
+      '69e487ece973b61c10472714': 1,
+      '69e48800e973b61c10472717': 2,
+      '69e4889034b0bd6931d3cf4b': 3,
+    };
+    const ledNumber = LED_MAP[deviceId.toString()];
+    if (ledNumber) {
+      SerialController.sendCommand(ledNumber, action); // action = 'ON' or 'OFF'
+    }
 
     DomainEvents.emit(DomainEvents.DEVICE_STATE_CHANGED, {
       device,
