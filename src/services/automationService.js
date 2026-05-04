@@ -16,7 +16,7 @@ const cron          = require('node-cron');
 const AutomationRule = require('../models/AutomationRule');
 const AppError      = require('../utils/AppError');
 const DomainEvents  = require('../events/domainEvents');
-const DeviceService = require('./deviceService');
+// const DeviceService = require('./deviceService');
 
 // ── TriggerStrategy interface ─────────────────────────────────────────────
 /**
@@ -187,6 +187,8 @@ class AutomationService {
       throw new AppError('Automation rule is disabled', 409);
     }
 
+    // Lazy-require here, same pattern as serialController.js
+    const DeviceService = require('./deviceService');
     const results = [];
 
     for (const actionCmd of rule.actions) {
