@@ -163,7 +163,7 @@ class EmailService {
    * @param {number} expiresIn    Hours until the invitation expires (default 48)
    */
   async sendInvitationEmail(to, adminName, homeName, token, expiresIn = 48) {
-    const acceptUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/accept-invitation?token=${token}`;
+    const acceptUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/accept-invitation?token=${token}`;
 
     const body = `
       <p>Hi there,</p>

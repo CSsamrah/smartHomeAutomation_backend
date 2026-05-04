@@ -64,7 +64,7 @@ class ErrorHandler {
 
   _handleMongooseValidation(err) {
     if (err.name !== 'ValidationError') return null;
-    const message = Object.values(err.errors).map((e) => e.message)[0];
+    const message = Object.values(err.errors || {}).map((e) => e.message)[0];
     return { status: 422, message, code: 'VALIDATION_ERROR' };
   }
 
