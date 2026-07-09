@@ -44,16 +44,17 @@ const serialController = require('./controllers/serialController');
 const globalErrorHandler = require('./middleware/errorHandler');
 const AppError = require('./utils/AppError');
 
-serialController.init('COM6'); // your actual port
- 
-// Register the same LED_MAP that lives in DeviceService
-// so Arduino feedback can be routed back to the right MongoDB device.
-// Keep these IDs in sync with the LED_MAP inside deviceService.js.
-serialController.registerLedMap({
-  1: '69e487ece973b61c10472714',
-  2: '69e48800e973b61c10472717',
-  3: '69e4889034b0bd6931d3cf4b',
-});
+if (process.env.ENABLE_SERIAL === "true") {
+  serialController.init("COM6");
+
+  serialController.registerLedMap({
+    1: "69e487ece973b61c10472714",
+    2: "69e48800e973b61c10472717",
+    3: "69e4889034b0bd6931d3cf4b",
+  });
+} else {
+  console.log("Running without Arduino (portfolio mode).");
+}
 const app = express();
 
 app.use(cors());
