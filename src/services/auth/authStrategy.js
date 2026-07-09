@@ -20,7 +20,7 @@
 
 const User              = require('../../models/User');
 const tokenService      = require('../tokenService');
-const googleAuthService = require('../GoogleAuthService');
+const googleAuthService = require('../googleAuthService');
 const emailService      = require('../emailService');
 
 const {
